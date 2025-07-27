@@ -329,7 +329,7 @@ class LeggedRobot(BaseTask):
                                     self.actions
                                     ),dim=-1)
             
-        # obs_buf_denoise = self.obs_buf.clone()
+        obs_buf_denoise = self.obs_buf.clone()
         
         # import pdb; pdb.set_trace()
         # add noise if needed
@@ -1020,80 +1020,80 @@ class LeggedRobot(BaseTask):
         self.cfg.domain_rand.push_interval = np.ceil(self.cfg.domain_rand.push_interval_s / self.dt)
 
     #-------------- Reference Motion ---------------
-    def _load_motion(self):
-        motion_path = self.cfg.motion.motion_file.format(LEGGED_GYM_ROOT_DIR=LEGGED_GYM_ROOT_DIR)
-        skeleton_path = self.cfg.motion.skeleton_file.format(LEGGED_GYM_ROOT_DIR=LEGGED_GYM_ROOT_DIR)
-        self._motion_lib = MotionLibH1(motion_file=motion_path, device=self.device, masterfoot_conifg=None, fix_height=False,multi_thread=False,mjcf_file=skeleton_path) #multi_thread=True doesn't work
-        sk_tree = SkeletonTree.from_mjcf(skeleton_path)
+    # def _load_motion(self):
+    #     motion_path = self.cfg.motion.motion_file.format(LEGGED_GYM_ROOT_DIR=LEGGED_GYM_ROOT_DIR)
+    #     skeleton_path = self.cfg.motion.skeleton_file.format(LEGGED_GYM_ROOT_DIR=LEGGED_GYM_ROOT_DIR)
+    #     self._motion_lib = MotionLibH1(motion_file=motion_path, device=self.device, masterfoot_conifg=None, fix_height=False,multi_thread=False,mjcf_file=skeleton_path) #multi_thread=True doesn't work
+    #     sk_tree = SkeletonTree.from_mjcf(skeleton_path)
         
-        self.skeleton_trees = [sk_tree] * self.num_envs
-        self._motion_lib.load_motions(skeleton_trees=self.skeleton_trees, gender_betas=[torch.zeros(17)] * self.num_envs, limb_weights=[np.zeros(10)] * self.num_envs, random_sample=True)
-        self.motion_dt = self._motion_lib._motion_dt
+    #     self.skeleton_trees = [sk_tree] * self.num_envs
+    #     self._motion_lib.load_motions(skeleton_trees=self.skeleton_trees, gender_betas=[torch.zeros(17)] * self.num_envs, limb_weights=[np.zeros(10)] * self.num_envs, random_sample=True)
+    #     self.motion_dt = self._motion_lib._motion_dt
         
-    def _resample_motions(self, env_ids):
-        if len(env_ids) == 0:
-            return
-        # self.motion_ids[env_ids] = self._motion_lib.sample_motions(len(env_ids))
-        # self.motion_ids[env_ids] = torch.randint(0, self._motion_lib._num_unique_motions, (len(env_ids),), device=self.device)
-        # print(self.motion_ids[:10])
-        self.motion_len[env_ids] = self._motion_lib.get_motion_length(self.motion_ids[env_ids])
-        self.env_origins_init_3Doffset[env_ids, :2] = torch_rand_float(-1., 1., (len(env_ids), 2), device=self.device) # xy position within 1m of the center
-        self.motion_times[env_ids] = self._motion_lib.sample_time(self.motion_ids[env_ids])
-        motion_res = self._motion_lib.get_motion_state(self.motion_ids[env_ids], self.motion_times[env_ids])
-        self.ref_base_pos_init[env_ids] = motion_res["root_pos"] + self.env_origins[env_ids] + self.env_origins_init_3Doffset[env_ids] # ZL: fix later. Ugly code. 
-        self.ref_base_rot_init[env_ids] = motion_res["root_rot"]
-        self.ref_base_vel_init[env_ids] = motion_res["root_vel"]
-        self.ref_base_ang_vel_init[env_ids] = motion_res["root_ang_vel"]
+    # def _resample_motions(self, env_ids):
+    #     if len(env_ids) == 0:
+    #         return
+    #     # self.motion_ids[env_ids] = self._motion_lib.sample_motions(len(env_ids))
+    #     # self.motion_ids[env_ids] = torch.randint(0, self._motion_lib._num_unique_motions, (len(env_ids),), device=self.device)
+    #     # print(self.motion_ids[:10])
+    #     self.motion_len[env_ids] = self._motion_lib.get_motion_length(self.motion_ids[env_ids])
+    #     self.env_origins_init_3Doffset[env_ids, :2] = torch_rand_float(-1., 1., (len(env_ids), 2), device=self.device) # xy position within 1m of the center
+    #     self.motion_times[env_ids] = self._motion_lib.sample_time(self.motion_ids[env_ids])
+    #     motion_res = self._motion_lib.get_motion_state(self.motion_ids[env_ids], self.motion_times[env_ids])
+    #     self.ref_base_pos_init[env_ids] = motion_res["root_pos"] + self.env_origins[env_ids] + self.env_origins_init_3Doffset[env_ids] # ZL: fix later. Ugly code. 
+    #     self.ref_base_rot_init[env_ids] = motion_res["root_rot"]
+    #     self.ref_base_vel_init[env_ids] = motion_res["root_vel"]
+    #     self.ref_base_ang_vel_init[env_ids] = motion_res["root_ang_vel"]
 
         
-    def _get_state_from_motionlib_cache(self, motion_ids, motion_times, offset=None):
-        ## Cache the motion + offset
-        if offset is None  or not "motion_ids" in self.ref_motion_cache or self.ref_motion_cache['offset'] is None or len(self.ref_motion_cache['motion_ids']) != len(motion_ids) or len(self.ref_motion_cache['offset']) != len(offset) \
-            or  (self.ref_motion_cache['motion_ids'] - motion_ids).abs().sum() + (self.ref_motion_cache['motion_times'] - motion_times).abs().sum() + (self.ref_motion_cache['offset'] - offset).abs().sum() > 0 :
-            self.ref_motion_cache['motion_ids'] = motion_ids.clone()  # need to clone; otherwise will be overriden
-            self.ref_motion_cache['motion_times'] = motion_times.clone()  # need to clone; otherwise will be overriden
-            self.ref_motion_cache['offset'] = offset.clone() if not offset is None else None
-        else:
-            return self.ref_motion_cache
-        motion_res = self._motion_lib.get_motion_state(motion_ids, motion_times, offset=offset)
+    # def _get_state_from_motionlib_cache(self, motion_ids, motion_times, offset=None):
+    #     ## Cache the motion + offset
+    #     if offset is None  or not "motion_ids" in self.ref_motion_cache or self.ref_motion_cache['offset'] is None or len(self.ref_motion_cache['motion_ids']) != len(motion_ids) or len(self.ref_motion_cache['offset']) != len(offset) \
+    #         or  (self.ref_motion_cache['motion_ids'] - motion_ids).abs().sum() + (self.ref_motion_cache['motion_times'] - motion_times).abs().sum() + (self.ref_motion_cache['offset'] - offset).abs().sum() > 0 :
+    #         self.ref_motion_cache['motion_ids'] = motion_ids.clone()  # need to clone; otherwise will be overriden
+    #         self.ref_motion_cache['motion_times'] = motion_times.clone()  # need to clone; otherwise will be overriden
+    #         self.ref_motion_cache['offset'] = offset.clone() if not offset is None else None
+    #     else:
+    #         return self.ref_motion_cache
+    #     motion_res = self._motion_lib.get_motion_state(motion_ids, motion_times, offset=offset)
 
-        self.ref_motion_cache.update(motion_res)
+    #     self.ref_motion_cache.update(motion_res)
 
-        return self.ref_motion_cache
+    #     return self.ref_motion_cache
         
-    def _update_motion_reference(self,):
-        # if self.cfg.motion.recycle_motion:
-        #     self.base_pos_init[motion_times <= self.dt, :3] = self.root_states[motion_times <= self.dt, :3]
+    # def _update_motion_reference(self,):
+    #     # if self.cfg.motion.recycle_motion:
+    #     #     self.base_pos_init[motion_times <= self.dt, :3] = self.root_states[motion_times <= self.dt, :3]
         
-        motion_res = self._motion_lib.get_motion_state(self.motion_ids, self.motion_times)
+    #     motion_res = self._motion_lib.get_motion_state(self.motion_ids, self.motion_times)
         
-        # self.ref_body_pos = motion_res["rg_pos"] + self.env_origins[:, None] # [num_envs, num_markers, 3]  # ZL: fix later. Ugly code.  
-        self.ref_body_pos = motion_res["rg_pos"] + self.env_origins[:, None] + self.env_origins_init_3Doffset[:, None]
-        self.ref_body_vel = motion_res["body_vel"] # [num_envs, num_markers, 3]
-        self.ref_body_rot = motion_res["rb_rot"] # [num_envs, num_markers, 4]
-        self.ref_body_ang_vel = motion_res["body_ang_vel"] # [num_envs, num_markers, 3]
-        self.ref_joint_pos = motion_res["dof_pos"] # [num_envs, num_dofs]
-        self.ref_joint_vel = motion_res["dof_vel"] # [num_envs, num_dofs]
-        # self.marker_coords[:] = motion_res["rg_pos"][:, 1:,] + self.env_origins[:, None]
-        self.marker_coords[:] = motion_res["rg_pos"][:, 1:,] + self.env_origins[:, None] + self.env_origins_init_3Doffset[:, None]
-        # import ipdb; ipdb.set_trace()
-    def _load_marker_asset(self):
-        asset_path = self.cfg.motion.marker_file.format(LEGGED_GYM_ROOT_DIR=LEGGED_GYM_ROOT_DIR)
-        asset_root = os.path.dirname(asset_path)
-        asset_file = os.path.basename(asset_path)
+    #     # self.ref_body_pos = motion_res["rg_pos"] + self.env_origins[:, None] # [num_envs, num_markers, 3]  # ZL: fix later. Ugly code.  
+    #     self.ref_body_pos = motion_res["rg_pos"] + self.env_origins[:, None] + self.env_origins_init_3Doffset[:, None]
+    #     self.ref_body_vel = motion_res["body_vel"] # [num_envs, num_markers, 3]
+    #     self.ref_body_rot = motion_res["rb_rot"] # [num_envs, num_markers, 4]
+    #     self.ref_body_ang_vel = motion_res["body_ang_vel"] # [num_envs, num_markers, 3]
+    #     self.ref_joint_pos = motion_res["dof_pos"] # [num_envs, num_dofs]
+    #     self.ref_joint_vel = motion_res["dof_vel"] # [num_envs, num_dofs]
+    #     # self.marker_coords[:] = motion_res["rg_pos"][:, 1:,] + self.env_origins[:, None]
+    #     self.marker_coords[:] = motion_res["rg_pos"][:, 1:,] + self.env_origins[:, None] + self.env_origins_init_3Doffset[:, None]
+    #     # import ipdb; ipdb.set_trace()
+    # def _load_marker_asset(self):
+    #     asset_path = self.cfg.motion.marker_file.format(LEGGED_GYM_ROOT_DIR=LEGGED_GYM_ROOT_DIR)
+    #     asset_root = os.path.dirname(asset_path)
+    #     asset_file = os.path.basename(asset_path)
 
-        marker_asset_options = gymapi.AssetOptions()
-        marker_asset_options.angular_damping = 0.0
-        marker_asset_options.linear_damping = 0.0
-        marker_asset_options.max_angular_velocity = 0.0
-        marker_asset_options.density = 0
-        marker_asset_options.fix_base_link = True
-        marker_asset_options.thickness = 0.0
-        marker_asset_options.default_dof_drive_mode = gymapi.DOF_MODE_NONE
-        # set no collision
-        marker_asset_options.disable_gravity = True
-        self._marker_asset = self.gym.load_asset(self.sim, asset_root, asset_file, marker_asset_options)
-        return
+    #     marker_asset_options = gymapi.AssetOptions()
+    #     marker_asset_options.angular_damping = 0.0
+    #     marker_asset_options.linear_damping = 0.0
+    #     marker_asset_options.max_angular_velocity = 0.0
+    #     marker_asset_options.density = 0
+    #     marker_asset_options.fix_base_link = True
+    #     marker_asset_options.thickness = 0.0
+    #     marker_asset_options.default_dof_drive_mode = gymapi.DOF_MODE_NONE
+    #     # set no collision
+    #     marker_asset_options.disable_gravity = True
+    #     self._marker_asset = self.gym.load_asset(self.sim, asset_root, asset_file, marker_asset_options)
+    #     return
     
     #------------ helper functions ---------------
     def _get_rigid_body_pos(self, body_name):
