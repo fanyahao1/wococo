@@ -44,6 +44,11 @@ class H1JumpJack(LeggedRobot):
         
         self.curiosity_handler = NHashCuriosity(self.cfg.rewards, self.device)
 
+    def _create_envs(self):
+        super()._create_envs()
+        self.hand_indices[0] = self._body_list.index("left_hand")
+        self.hand_indices[1] = self._body_list.index("right_hand")
+
     def _draw_debug_vis(self):
         """ Draws visualizations for dubugging (slows down simulation a lot).
             Default behaviour: draws height measurement points
@@ -267,6 +272,22 @@ class H1JumpJack(LeggedRobot):
         ff = torch.logical_and(lh_ff, rh_ff) * torch.logical_and(lf_ff, rf_ff)
         wb_good = height_good * ff
         return wb_good
+    
+    @property
+    def knee_distance(self):
+        left_knee_pos = self._get_rigid_body_pos("left_knee_link")
+        right_knee_pos = self._get_rigid_body_pos("right_knee_link")
+        # print(f"left knee pos: {left_knee_pos}")
+        dist_knee = torch.norm(left_knee_pos - right_knee_pos, dim=-1, keepdim=True)
+        # print("dist knee shape", dist_knee.shape)
+        return dist_knee
+  
+    @property
+    def feet_distance(self):
+        left_foot_pos = self._get_rigid_body_pos("left_ankle_link")
+        right_foot_pos = self._get_rigid_body_pos("right_ankle_link")
+        dist_feet = torch.norm(left_foot_pos - right_foot_pos, dim=-1, keepdim=True)
+        return dist_feet
 
     # contact sequence:  if one: foot another side / hand to another;  if zero: foot original side / arm spread --- towards YMCA
     def _reward_on_box(self):

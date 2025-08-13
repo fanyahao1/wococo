@@ -893,6 +893,8 @@ class LeggedRobot(BaseTask):
         # save body names from the asset
         body_names = self.gym.get_asset_rigid_body_names(robot_asset)
         self.dof_names = self.gym.get_asset_dof_names(robot_asset)
+        for i in range(len(self.dof_names)):
+            print(f"{i}: {self.dof_names[i]}")
         # import pdb; pdb.set_trace()
         self.num_bodies = len(body_names)
         self.num_dofs = len(self.dof_names)
@@ -939,8 +941,8 @@ class LeggedRobot(BaseTask):
         for i in range(len(feet_names)):
             self.feet_indices[i] = self.gym.find_actor_rigid_body_handle(self.envs[0], self.actor_handles[0], feet_names[i])
         self.hand_indices = torch.zeros(2, dtype=torch.long, device=self.device, requires_grad=False)
-        self.hand_indices[0] = self._body_list.index("left_hand")
-        self.hand_indices[1] = self._body_list.index("right_hand")
+        # self.hand_indices[0] = self._body_list.index("left_hand")
+        # self.hand_indices[1] = self._body_list.index("right_hand")
 
         self.penalised_contact_indices = torch.zeros(len(penalized_contact_names), dtype=torch.long, device=self.device, requires_grad=False)
         for i in range(len(penalized_contact_names)):

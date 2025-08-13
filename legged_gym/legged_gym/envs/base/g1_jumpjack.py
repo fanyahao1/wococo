@@ -44,6 +44,11 @@ class G1JumpJack(LeggedRobot):
         
         self.curiosity_handler = NHashCuriosity(self.cfg.rewards, self.device)
 
+    def _create_envs(self):
+        super()._create_envs()
+        self.hand_indices[0] = self._body_list.index("right_wrist_roll_rubber_hand")
+        self.hand_indices[1] = self._body_list.index("left_wrist_roll_rubber_hand")
+
     def _draw_debug_vis(self):
         """ Draws visualizations for dubugging (slows down simulation a lot).
             Default behaviour: draws height measurement points
@@ -158,16 +163,16 @@ class G1JumpJack(LeggedRobot):
         #todo: deal with 4 ee
         self.phase =  self.contact_sequence[torch.arange(self.num_envs), :, self.current_contact_goal[:,0]].float()
         self.obs_buf = torch.cat((  
-                                    (self.dof_pos - self.dof_bias) * self.obs_scales.dof_pos, # 19
-                                    self.dof_vel * self.obs_scales.dof_vel, # 19
+                                    (self.dof_pos - self.dof_bias) * self.obs_scales.dof_pos, # 23
+                                    self.dof_vel * self.obs_scales.dof_vel, # 23
                                     self.base_ang_vel  * self.obs_scales.ang_vel, # 3
                                     self.base_lin_vel * self.obs_scales.lin_vel, # 3
                                     self.projected_gravity, # 3
                                     self.phase, # 4
                                     self.global_obs(), # 3
-                                    self.actions, # 19,
-                                    self.joint_hist[:,1,:], # 57
-                                    self.joint_hist[:,2,:], # 57
+                                    self.actions, # 23,
+                                    self.joint_hist[:,1,:], # 69
+                                    self.joint_hist[:,2,:], # 69
                                     ),dim=-1)
                     
         obs_buf_denoise = self.obs_buf.clone()
@@ -191,16 +196,24 @@ class G1JumpJack(LeggedRobot):
         
         
     def symmetric_dof(self, prev_dof):
-        assert prev_dof.shape[1] == 19, print(prev_dof.shape[1])
-        LEFT_POS_INDICES = [2, 3, 4, 11, 14]
-        LEFT_NEG_INDICES = [0, 1, 12, 13]
-        RIGHT_POS_INDICES = [7, 8, 9, 15, 18]
-        RIGHT_NEG_INDICES = [5, 6, 16, 17]
+        assert prev_dof.shape[1] == 23, print(prev_dof.shape[1])
+        
+        LEFT_POS_INDICES = [0, 3, 4, 13, 16]    # 左侧直接交换的关节 (pitch类)
+        LEFT_NEG_INDICES = [1, 2, 5, 14, 15, 17] # 左侧需取反的关节 (roll/yaw类)
+        RIGHT_POS_INDICES = [6, 9, 10, 18, 21]   # 右侧直接交换的关节 (pitch类)
+        RIGHT_NEG_INDICES = [7, 8, 11, 19, 20, 22] # 右侧需取反的关节 (roll/yaw类)
+        
         new_dof = prev_dof.clone()
-        new_dof[:, 10] *= -1.
+        
+        new_dof[:, 12] *= -1.  # waist_yaw_joint
+        
+        # 1. 将右侧POS关节的值复制到左侧POS位置
         new_dof[:, LEFT_POS_INDICES] = prev_dof[:, RIGHT_POS_INDICES].clone()
-        new_dof[:, RIGHT_POS_INDICES] = prev_dof[:, LEFT_POS_INDICES].clone()
+        # 2. 将右侧NEG关节的值取反后复制到左侧NEG位置
         new_dof[:, LEFT_NEG_INDICES] = prev_dof[:, RIGHT_NEG_INDICES].clone() * (-1.)
+        # 3. 将左侧POS关节的值复制到右侧POS位置
+        new_dof[:, RIGHT_POS_INDICES] = prev_dof[:, LEFT_POS_INDICES].clone()
+        # 4. 将左侧NEG关节的值取反后复制到右侧NEG位置
         new_dof[:, RIGHT_NEG_INDICES] = prev_dof[:, LEFT_NEG_INDICES].clone() * (-1.)
         return new_dof.clone()
         
@@ -212,43 +225,45 @@ class G1JumpJack(LeggedRobot):
         extend_batch_critic_obs = torch.cat([batch_critic_obs, batch_critic_obs], dim=0)
         extend_batch_actions = torch.cat([batch_actions, batch_actions], dim=0)
         
-        # left-right symmetric for actions
+        # 左-右对称变换动作
         extend_batch_actions[batch_size:, :] = self.symmetric_dof(extend_batch_actions[:batch_size, :])
+        # 关节位置 (0-22)
+        extend_batch_obs[batch_size:, :23] = self.symmetric_dof(extend_batch_obs[:batch_size, :23])
+        # 关节速度 (23-45)
+        extend_batch_obs[batch_size:, 23:46] = self.symmetric_dof(extend_batch_obs[:batch_size, 23:46])
+        # 基座方向 (假设在46-49)
+        extend_batch_obs[batch_size:, 46:47] *= -1.  # 旋转x分量取反
+        extend_batch_obs[batch_size:, 48:49] *= -1.  # 旋转z分量取反
         
-        # left-right symmetric for observations
-        extend_batch_obs[batch_size:, :19] = self.symmetric_dof(extend_batch_obs[:batch_size, :19])
-        extend_batch_obs[batch_size:, 19:38] = self.symmetric_dof(extend_batch_obs[:batch_size, 19:38])
-        extend_batch_obs[batch_size:, 38:39] *= -1. # rotate x
-        extend_batch_obs[batch_size:, 40:41] *= -1. # rotate z
-        # 41 lin_vel in x
-        extend_batch_obs[batch_size:, 42:43] *= -1. # change lin vel in y
-        # 43 lin_vel in z
-        # 44 gravity in x
-        extend_batch_obs[batch_size:, 45:46] *= -1. # change gravity in y
-        # 46 gravity in z
-        # 47:51 phase
-        extend_batch_obs[batch_size:, 47] = extend_batch_obs[:batch_size, 48].clone()
-        extend_batch_obs[batch_size:, 48] = extend_batch_obs[:batch_size, 47].clone()
-        extend_batch_obs[batch_size:, 49] = extend_batch_obs[:batch_size, 50].clone()
-        extend_batch_obs[batch_size:, 50] = extend_batch_obs[:batch_size, 49].clone()
-        # 51:54 x y yaw
-        extend_batch_obs[batch_size:, 52] *= -1.
-        extend_batch_obs[batch_size:, 53] *= -1.
-                
-        # symmetric for action    
-        extend_batch_obs[batch_size:, 54:73] = self.symmetric_dof(extend_batch_obs[:batch_size, 54:73])
-        # symmetric for history of joints
-        extend_batch_obs[batch_size:, 54+19:73+19] = self.symmetric_dof(extend_batch_obs[:batch_size, 54+19:73+19])
-        extend_batch_obs[batch_size:, 54+38:73+38] = self.symmetric_dof(extend_batch_obs[:batch_size, 54+38:73+38])
-        extend_batch_obs[batch_size:, 54+57:73+57] = self.symmetric_dof(extend_batch_obs[:batch_size, 54+57:73+57])
-        extend_batch_obs[batch_size:, 54+76:73+76] = self.symmetric_dof(extend_batch_obs[:batch_size, 54+76:73+76])
-        extend_batch_obs[batch_size:, 54+95:73+95] = self.symmetric_dof(extend_batch_obs[:batch_size, 54+95:73+95])
-        extend_batch_obs[batch_size:, 54+114:73+114] = self.symmetric_dof(extend_batch_obs[:batch_size, 54+114:73+114])
+        # 线速度 (假设在50-52)
+        extend_batch_obs[batch_size:, 50:51] *= -1.  # y方向线速度取反
         
-        # left-right symmetric for critic observations
+        # 重力方向 (假设在53-55)
+        extend_batch_obs[batch_size:, 53:54] *= -1.  # y方向重力分量取反
+        
+        # 相位信息 (假设在56-59)
+        # 交换左右腿相位
+        extend_batch_obs[batch_size:, 55] = extend_batch_obs[:batch_size, 57].clone()
+        extend_batch_obs[batch_size:, 56] = extend_batch_obs[:batch_size, 56].clone()
+        extend_batch_obs[batch_size:, 57] = extend_batch_obs[:batch_size, 59].clone()
+        extend_batch_obs[batch_size:, 58] = extend_batch_obs[:batch_size, 58].clone()
+        
+        # 命令信息 (假设在60-62: x速度, y速度, 偏航角速度)
+        extend_batch_obs[batch_size:, 60] *= -1.  # y速度取反
+        extend_batch_obs[batch_size:, 61] *= -1.  # 偏航角速度取反
+        
+        # 对称变换历史动作 (假设从63开始)
+        extend_batch_obs[batch_size:, 62:85] = self.symmetric_dof(extend_batch_obs[:batch_size, 62:85])
+        extend_batch_obs[batch_size:, 85:108] = self.symmetric_dof(extend_batch_obs[:batch_size, 85:108])
+        extend_batch_obs[batch_size:, 108:131] = self.symmetric_dof(extend_batch_obs[:batch_size, 108:131])
+        extend_batch_obs[batch_size:, 131:154] = self.symmetric_dof(extend_batch_obs[:batch_size, 131:154])
+        extend_batch_obs[batch_size:, 154:177] = self.symmetric_dof(extend_batch_obs[:batch_size, 154:177])
+        extend_batch_obs[batch_size:, 177:200] = self.symmetric_dof(extend_batch_obs[:batch_size, 177:200])
+        extend_batch_obs[batch_size:, 200:223] = self.symmetric_dof(extend_batch_obs[:batch_size, 200:223])
+
+        # 对称变换critic观测值
         extend_batch_critic_obs[batch_size:, :] = extend_batch_obs[batch_size:, :].clone()
         
-        # extend_batch_actions[batch_size:, 0]
         return extend_batch_obs, extend_batch_critic_obs, extend_batch_actions
         
     def _whole_body_fulfillment(self):
@@ -267,6 +282,20 @@ class G1JumpJack(LeggedRobot):
         ff = torch.logical_and(lh_ff, rh_ff) * torch.logical_and(lf_ff, rf_ff)
         wb_good = height_good * ff
         return wb_good
+    
+    @property
+    def knee_distance(self):
+        left_knee_pos = self._get_rigid_body_pos("left_knee_link")
+        right_knee_pos = self._get_rigid_body_pos("right_knee_link")
+        dist_knee = torch.norm(left_knee_pos - right_knee_pos, dim=-1, keepdim=True)
+        return dist_knee
+    
+    @property
+    def feet_distance(self):
+        left_foot_pos = self._get_rigid_body_pos("left_ankle_roll_link")
+        right_foot_pos = self._get_rigid_body_pos("right_ankle_roll_link")
+        dist_feet = torch.norm(left_foot_pos - right_foot_pos, dim=-1, keepdim=True)
+        return dist_feet
 
     # contact sequence:  if one: foot another side / hand to another;  if zero: foot original side / arm spread --- towards YMCA
     def _reward_on_box(self):

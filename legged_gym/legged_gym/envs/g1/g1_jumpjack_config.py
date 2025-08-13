@@ -2,27 +2,37 @@ from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobot
 
 class G1JumpJackCfg( LeggedRobotCfg ):
     class init_state( LeggedRobotCfg.init_state ):
-        pos = [0.0, 0.0, 1.05] # x,y,z [m]
+        pos = [0.0, 0.0, 0.8] # x,y,z [m]
         default_joint_angles = { # = target angles [rad] when action = 0.0
-           'left_hip_yaw_joint' : 0. ,   
-           'left_hip_roll_joint' : 0,               
-           'left_hip_pitch_joint' : -0.4,         
-           'left_knee_joint' : 0.8,       
-           'left_ankle_joint' : -0.4,     
-           'right_hip_yaw_joint' : 0., 
-           'right_hip_roll_joint' : 0, 
-           'right_hip_pitch_joint' : -0.4,                                       
-           'right_knee_joint' : 0.8,                                             
-           'right_ankle_joint' : -0.4,                                     
-           'torso_joint' : 0., 
-           'left_shoulder_pitch_joint' : 0., 
-           'left_shoulder_roll_joint' : 0, 
-           'left_shoulder_yaw_joint' : 0.,
-           'left_elbow_joint'  : 0.,
-           'right_shoulder_pitch_joint' : 0.,
-           'right_shoulder_roll_joint' : 0.0,
-           'right_shoulder_yaw_joint' : 0.,
-           'right_elbow_joint' : 0.,
+            "left_hip_pitch_joint": -0.1,
+            "left_hip_roll_joint": 0,
+            "left_hip_yaw_joint": 0,
+            "left_knee_joint": 0.3,
+            "left_ankle_pitch_joint": -0.2,
+            "left_ankle_roll_joint": 0.0,
+            "right_hip_pitch_joint": -0.1,
+            "right_hip_roll_joint": 0,
+            "right_hip_yaw_joint": 0,
+            "right_knee_joint": 0.3,
+            "right_ankle_pitch_joint": -0.2,
+            "right_ankle_roll_joint": 0.0,
+            "waist_yaw_joint": 0,
+            "waist_roll_joint": 0,
+            "waist_pitch_joint": 0,
+            "left_shoulder_pitch_joint": 0.5,
+            "left_shoulder_roll_joint": 0,
+            "left_shoulder_yaw_joint": 0.2,
+            "left_elbow_joint": 0.3,
+            "left_wrist_roll_joint": 0,
+            "left_wrist_pitch_joint": 0,
+            "left_wrist_yaw_joint": 0,
+            "right_shoulder_pitch_joint": 0.5,
+            "right_shoulder_roll_joint": 0,
+            "right_shoulder_yaw_joint": -0.2,
+            "right_elbow_joint": 0.3,
+            "right_wrist_roll_joint": 0,
+            "right_wrist_pitch_joint": 0,
+            "right_wrist_yaw_joint": 0,
         }
         
         randomize_upperbody = False
@@ -33,14 +43,14 @@ class G1JumpJackCfg( LeggedRobotCfg ):
         max_dof_bias = 0.08
         
         randomize_yaw = True
-        init_yaw_range = [-0.5,0.5]
+        init_yaw_range = [-0.5, 0.5]
 
         randomize_ctrl_delay = False
         ctrl_delay_step_range = [0, 1] # integer max real delay is 90ms
 
         push_robots = False
         push_interval_s = 5
-        max_push_vel_xy = 0.25
+        max_push_vel_xy = 0.20
         
         randomize_friction = True
         friction_range = [-0.6, 1.2]
@@ -111,10 +121,11 @@ class G1JumpJackCfg( LeggedRobotCfg ):
 
     class env(LeggedRobotCfg.env):
         num_envs = 4096
-        num_noise = 187
-        num_observations = 187
+        num_noise = 223
+        num_observations = 223
         
-        num_actions = 19
+        # num_actions = 19
+        num_actions = 23
 
         send_timeouts = False  # full episode rew
         episode_length_s = 10
@@ -135,25 +146,42 @@ class G1JumpJackCfg( LeggedRobotCfg ):
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters:
         control_type = 'P'
-          # PD Drive parameters:
-        stiffness = {'hip_yaw': 200,
-                     'hip_roll': 200,
-                     'hip_pitch': 200,
-                     'knee': 300,
-                     'ankle': 40,
-                     'torso': 300,
-                     'shoulder': 100,
-                     "elbow":100,
-                     }  # [N*m/rad]
-        damping = {  'hip_yaw': 5,
-                     'hip_roll': 5,
-                     'hip_pitch': 5,
-                     'knee': 6,
-                     'ankle': 2,
-                     'torso': 6,
-                     'shoulder': 2,
-                     "elbow":2,
-                     }  # [N*m/rad]  # [N*m*s/rad]
+        stiffness = {
+            "hip_yaw_joint": 150.0,
+            "hip_roll_joint": 150.0,
+            "hip_pitch_joint": 150.0,
+            "knee_joint": 300.0,
+            "ankle_pitch_joint": 150.0,
+            "ankle_roll_joint": 60.0,
+            "waist_yaw_joint": 400.0,
+            "waist_roll_joint": 400.0,
+            "waist_pitch_joint": 400.0,
+            "shoulder_pitch_joint": 80.0,
+            "shoulder_roll_joint": 80.0,
+            "shoulder_yaw_joint": 40.0,
+            "elbow_joint": 60.0,
+            "wrist_roll_joint": 40.0,
+            "wrist_pitch_joint": 40.0,
+            "wrist_yaw_joint": 40.0,
+        }  # [N*m/rad]
+        damping = {
+            "hip_yaw_joint": 2.0,
+            "hip_roll_joint": 2.0,
+            "hip_pitch_joint": 2.0,
+            "knee_joint": 4.0,
+            "ankle_pitch_joint": 2.0,
+            "ankle_roll_joint": 1.0,
+            "waist_yaw_joint": 15.0,
+            "waist_roll_joint": 15.0,
+            "waist_pitch_joint": 15.0,
+            "shoulder_pitch_joint": 2.0,
+            "shoulder_roll_joint": 2.0,
+            "shoulder_yaw_joint": 1.0,
+            "elbow_joint": 1.0,
+            "wrist_roll_joint": 1.5,
+            "wrist_pitch_joint": 1.5,
+            "wrist_yaw_joint": 1.5,
+        }  # [N*m/rad]  # [N*m*s/rad]
         # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 0.25
         # decimation: Number of control action updates @ sim DT per policy DT
@@ -165,19 +193,18 @@ class G1JumpJackCfg( LeggedRobotCfg ):
         torque_effort_scale = 1.0
 
     class asset( LeggedRobotCfg.asset ):
-        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/g1/urdf/g1_23dof_rev_1_0.urdf'
+        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/g1/g1_23dof_rev_1_0.urdf'
         name = "g1"
         foot_name = "ankle_roll"
         penalize_contacts_on = []
         terminate_after_contacts_on = ["pelvis", 
-                                       "shoulder", 
-                                    #    "elbow",
-                                       "hip_roll", 
-                                       "hip_pitch", 
-                                       "knee",
-                                       "torso",
+                                    #    "shoulder", 
+                                    #    "hip_roll", 
+                                    #    "hip_pitch", 
+                                    #    "knee",
+                                    #    "torso",
                                        ]
-        self_collisions = 0 # 1 to disable, 0 to enable...bitwise filter
+        self_collisions = 1 # 1 to disable, 0 to enable...bitwise filter
         flip_visual_attachments = False
   
         density = 0.001
@@ -198,13 +225,13 @@ class G1JumpJackCfg( LeggedRobotCfg ):
         terminate_by_hip_yaw = True
         
         class termination_scales():
-            base_height = 0.1
+            base_height = 0.08
             base_vel = 10.0
             base_ang_vel = 5.0
             gravity_x = 0.7
             gravity_y = 0.7
-            min_knee_distance = 0.17
-            min_feet_distance = 0.17
+            min_knee_distance = 0.12
+            min_feet_distance = 0.12
             global_xy = 0.8
             hip_yaw_sum = 0.8
 
@@ -244,8 +271,8 @@ class G1JumpJackCfg( LeggedRobotCfg ):
         soft_dof_pos_limit = 0.85 # percentage of urdf limits, values above this limit are penalized
         soft_dof_vel_limit = 0.8
         soft_torque_limit = 0.8
-        max_contact_force = 350. # [N]
-        base_height_target = 0.70
+        max_contact_force = 380. # [N]
+        base_height_target = 0.78
 
         class curiosity:
             obs_dim = 29
