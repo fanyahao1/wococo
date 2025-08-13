@@ -17,15 +17,16 @@ command_state = {
 }
 
 override = False
-groupdance = False
+groupdance = True
 
 def play(args):
 
     env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
     # override some parameters for testing
     # env_cfg.env.num_envs = min(env_cfg.env.num_envs, 100)
-    env_cfg.env.num_envs = 1
-    if not groupdance: env_cfg.viewer.debug_viz = True
+    env_cfg.env.num_envs = 10
+    # if not groupdance: env_cfg.viewer.debug_viz = True
+    env_cfg.viewer.debug_viz = True
     env_cfg.motion.visualize = False
     env_cfg.terrain.num_rows = 4
     env_cfg.terrain.num_cols = 4
@@ -35,6 +36,7 @@ def play(args):
     if env_cfg.terrain.mesh_type == 'trimesh':
         env_cfg.terrain.terrain_types = ['flat', 'rough', 'low_obst']  # do not duplicate!
         env_cfg.terrain.terrain_proportions = [0.0, 0.5, 0.5]
+        env_cfg.terrain.border_size = 8
     env_cfg.noise.add_noise = False
     env_cfg.domain_rand.randomize_dof_bias = False
     env_cfg.domain_rand.randomize_friction = False
@@ -80,7 +82,7 @@ def play(args):
     [0, 1,0,0],
     [0, 0,0,1]]
         env.contact_sequence[0,:,:] = torch.tensor(dance_steps).to(env.device).repeat(1,25)
-        env.period_contact[0] = 0.4
+        env.period_contact[0] = 0.8
 
     logger = Logger(env.dt)
     robot_index = 0 # which robot is used for logging
@@ -171,30 +173,30 @@ def play(args):
             obs[:,10] = 0.0
             obs[:,11] = 0.0
 
-        if i < stop_state_log:
-            logger.log_states(
-                {
-                    'dof_pos_target': actions[robot_index, joint_index].item() * env.cfg.control.action_scale + env.default_dof_pos[robot_index, joint_index].item(),
-                    # 'dof_pos_target': env.actions[robot_index, joint_index].item() * env.cfg.control.action_scale + env.default_dof_pos[robot_index, joint_index].item(),
-                    'dof_pos': env.dof_pos[robot_index, joint_index].item(),
-                    'dof_vel': env.dof_vel[robot_index, joint_index].item(),
-                    'dof_torque': env.torques[robot_index, joint_index].item(),
-                    'base_vel_x': env.base_lin_vel[robot_index, 0].item(),
-                    'base_vel_y': env.base_lin_vel[robot_index, 1].item(),
-                    'base_vel_z': env.base_lin_vel[robot_index, 2].item(),
-                    'base_vel_yaw': env.base_ang_vel[robot_index, 2].item(),
-                    'contact_forces_z': env.contact_forces[robot_index, env.feet_indices, 2].cpu().numpy()
-                }
-            )
-        elif i==stop_state_log:
-            logger.plot_states()
-        if  0 < i < stop_rew_log:
-            if infos["episode"]:
-                num_episodes = torch.sum(env.reset_buf).item()
-                if num_episodes>0:
-                    logger.log_rewards(infos["episode"], num_episodes)
-        elif i==stop_rew_log:
-            logger.print_rewards()
+        # if i < stop_state_log:
+        #     logger.log_states(
+        #         {
+        #             'dof_pos_target': actions[robot_index, joint_index].item() * env.cfg.control.action_scale + env.default_dof_pos[robot_index, joint_index].item(),
+        #             # 'dof_pos_target': env.actions[robot_index, joint_index].item() * env.cfg.control.action_scale + env.default_dof_pos[robot_index, joint_index].item(),
+        #             'dof_pos': env.dof_pos[robot_index, joint_index].item(),
+        #             'dof_vel': env.dof_vel[robot_index, joint_index].item(),
+        #             'dof_torque': env.torques[robot_index, joint_index].item(),
+        #             'base_vel_x': env.base_lin_vel[robot_index, 0].item(),
+        #             'base_vel_y': env.base_lin_vel[robot_index, 1].item(),
+        #             'base_vel_z': env.base_lin_vel[robot_index, 2].item(),
+        #             'base_vel_yaw': env.base_ang_vel[robot_index, 2].item(),
+        #             'contact_forces_z': env.contact_forces[robot_index, env.feet_indices, 2].cpu().numpy()
+        #         }
+        #     )
+        # elif i==stop_state_log:
+        #     logger.plot_states()
+        # if  0 < i < stop_rew_log:
+        #     if infos["episode"]:
+        #         num_episodes = torch.sum(env.reset_buf).item()
+        #         if num_episodes>0:
+        #             logger.log_rewards(infos["episode"], num_episodes)
+        # elif i==stop_rew_log:
+        #     logger.print_rewards()
 
 if __name__ == '__main__':
     EXPORT_POLICY = False

@@ -38,7 +38,7 @@ class LeggedRobot(BaseTask):
         """
         self.cfg = cfg
         self.sim_params = sim_params
-        self.height_samples = None
+        # self.height_samples = None
         self.debug_viz = self.cfg.viewer.debug_viz
         self.init_done = False
         self._parse_cfg(self.cfg)
@@ -385,9 +385,9 @@ class LeggedRobot(BaseTask):
         tm_params.static_friction = self.cfg.terrain.static_friction
         tm_params.dynamic_friction = self.cfg.terrain.dynamic_friction
         tm_params.restitution = self.cfg.terrain.restitution
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         self.gym.add_triangle_mesh(self.sim, self.terrain.vertices.flatten(order='C'), self.terrain.triangles.flatten(order='C'), tm_params)   
-        self.height_samples = torch.tensor(self.terrain.heightsamples).view(self.terrain.tot_rows, self.terrain.tot_cols).to(self.device)
+        # self.height_samples = torch.tensor(self.terrain.heightsamples).view(self.terrain.tot_rows, self.terrain.tot_cols).to(self.device)
 
     def set_camera(self, position, lookat):
         """ Set camera position and direction
